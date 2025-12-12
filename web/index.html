@@ -4,48 +4,149 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Gesture Recognition — Demo</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <style>
+      body { font-family: Arial, sans-serif; margin: 12px; }
+      .row { display:flex; gap:16px; align-items:flex-start; }
+      .panel { border:1px solid #ddd; padding:12px; border-radius:6px; background:#fff; }
+      #canvasWrap { position:relative; width:640px; height:480px; background:#222; }
+      canvas { position:absolute; left:0; top:0; }
+      #controls { width:320px; }
+      label { display:block; margin-top:8px; }
+      button { margin-top:8px; padding:8px 12px; }
+      #status { margin-top:8px; font-weight:600; }
+    </style>
   </head>
   <body>
     <h1>Gesture Recognition — Demo</h1>
-    <p>Live pose landmarks and recognition results from `/ws/capture` and `/recognize`.</p>
+    <div class="row">
+      <div class="panel" id="canvasWrap">
+        <canvas id="videoCanvas" width="640" height="480"></canvas>
+        <canvas id="overlay" width="640" height="480"></canvas>
+      </div>
 
-    <pre id="log" style="height:300px;overflow:auto;border:1px solid #ddd;padding:8px"></pre>
-    <div>
-      <strong>Last recognition:</strong> <span id="last"></span>
+      <div class="panel" id="controls">
+        <div>
+          <label>Label for recording:</label>
+          <input id="labelInput" type="text" placeholder="e.g. raise_right_hand" />
+        </div>
+        <div>
+          <button id="startRec">Start Recording</button>
+          <button id="stopRec" disabled>Stop Recording</button>
+        </div>
+        <div id="status">Status: idle</div>
+        <hr />
+        <div>
+          <label>Mappings (edit and Save)</label>
+          <textarea id="mappings" style="width:100%;height:160px;font-family:monospace"></textarea>
+          <button id="saveMappings">Save Mappings</button>
+        </div>
+      </div>
     </div>
 
     <script>
-      const logEl = document.getElementById('log');
-      const lastEl = document.getElementById('last');
+      const videoCanvas = document.getElementById('videoCanvas');
+      const overlay = document.getElementById('overlay');
+      const vctx = videoCanvas.getContext('2d');
+      const octx = overlay.getContext('2d');
 
-      function log(msg) {
-        const t = document.createElement('div');
-        t.textContent = msg;
-        logEl.prepend(t);
+      const labelInput = document.getElementById('labelInput');
+      const startRec = document.getElementById('startRec');
+      const stopRec = document.getElementById('stopRec');
+      const statusEl = document.getElementById('status');
+      const mappingsEl = document.getElementById('mappings');
+      const saveMappings = document.getElementById('saveMappings');
+
+      let ws;
+      let recording = false;
+      let recordLabel = '';
+
+      function setStatus(s) { statusEl.textContent = 'Status: ' + s; }
+
+      function drawLandmarks(landmarks) {
+        octx.clearRect(0,0,overlay.width,overlay.height);
+        if (!landmarks) return;
+        octx.fillStyle = 'lime';
+        octx.strokeStyle = 'rgba(0,255,0,0.7)';
+        octx.lineWidth = 2;
+        for (const k in landmarks) {
+          const p = landmarks[k];
+          const x = p.x * overlay.width;
+          const y = p.y * overlay.height;
+          octx.beginPath(); octx.arc(x,y,4,0,Math.PI*2); octx.fill();
+        }
       }
 
-      const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/capture');
-      ws.onopen = () => log('WS connected');
-      ws.onclose = () => log('WS closed');
-      ws.onerror = (e) => log('WS error: ' + e);
-      ws.onmessage = async (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          log('landmarks received');
+      async function initWS(){
+        const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/capture');
+        ws.onopen = () => setStatus('WS: подключено');
+        ws.onclose = () => setStatus('WS: закрыто');
+        ws.onerror = (e) => setStatus('WS: ошибка');
+        ws.onmessage = async (e) => {
+          try {
+            const data = JSON.parse(e.data);
 
-          // send to recognition endpoint
-          const res = await fetch('/recognize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ landmarks: data.landmarks })
-          });
-          const result = await res.json();
-          lastEl.textContent = result.label + ' (' + (result.confidence ?? '') + ')';
-          log('recognize -> ' + JSON.stringify(result));
-        } catch (err) {
-          log('parse error: ' + err);
-        }
+            // draw camera frame if available
+            if (data.frame) {
+              const img = new Image();
+              img.onload = () => { vctx.drawImage(img,0,0, videoCanvas.width, videoCanvas.height); };
+              img.onerror = () => console.error('Failed to load frame image');
+              img.src = data.frame;
+            }
+
+            drawLandmarks(data.landmarks);
+
+            // send to recognize and show nice UI
+            const res = await fetch('/recognize', { method: 'POST', headers:{ 'Content-Type':'application/json'}, body: JSON.stringify({landmarks: data.landmarks}) });
+            if (!res.ok) {
+              setStatus('Ошибка: ' + res.status);
+              return;
+            }
+            const result = await res.json();
+
+            // show highlighted label
+            if (result.label && result.label !== 'none') {
+              setStatus('Распознано: ' + result.label + ' — ' + (result.confidence ?? ''));
+            } else {
+              setStatus('Распознавание: —');
+            }
+
+            // if recording, send sample
+            if (recording && recordLabel) {
+              await fetch('/record/sample', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ label: recordLabel, landmarks: data.landmarks }) });
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        };
+      }
+
+      startRec.onclick = () => {
+        const v = labelInput.value.trim();
+        if (!v) { alert('Введите метку для записи'); return; }
+        recordLabel = v; recording = true; startRec.disabled = true; stopRec.disabled = false; setStatus('recording: ' + recordLabel);
       };
+      stopRec.onclick = () => { recording = false; recordLabel=''; startRec.disabled=false; stopRec.disabled=true; setStatus('idle'); };
+
+      saveMappings.onclick = async () => {
+        try {
+          const payload = JSON.parse(mappingsEl.value);
+          const res = await fetch('/settings/mappings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          if (res.ok) alert('Mappings saved'); else alert('Save error');
+        } catch(e){ alert('Invalid JSON'); }
+      };
+
+      async function loadMappings(){
+        try{
+          const res = await fetch('/settings/mappings');
+          const data = await res.json();
+          mappingsEl.value = JSON.stringify(data, null, 2);
+        }catch(e){ mappingsEl.value = '{}'; }
+      }
+
+      // init
+      initWS();
+      loadMappings();
     </script>
   </body>
 </html>

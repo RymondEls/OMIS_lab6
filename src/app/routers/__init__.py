@@ -1,2 +1,2 @@
-from . import health, capture, recognize
+from . import health, capture, recognize, settings, record
 

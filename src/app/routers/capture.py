@@ -12,7 +12,6 @@ async def websocket_capture(websocket: WebSocket):
     await websocket.accept()
     capture = CaptureService()
     try:
-        # stream frames -> websocket; CaptureService handles camera read in executor
         await capture.stream_to_websocket(websocket)
     except WebSocketDisconnect:
         pass

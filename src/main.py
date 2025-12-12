@@ -16,6 +16,11 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(capture.router)
     app.include_router(recognize.router)
+    
+    from src.app.routers import settings, record
+
+    app.include_router(settings.router)
+    app.include_router(record.router)
     return app
 
 

@@ -1,0 +1,8 @@
+body { font-family: Inter, Arial, sans-serif; background:#f5f7fb; color:#222; }
+.panel { background:#fff; box-shadow: 0 6px 18px rgba(30,50,80,0.06); }
+#canvasWrap { border-radius:8px; overflow:hidden; }
+#overlay { pointer-events:none; }
+#status { color:#0b6; }
+button { background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+button[disabled] { opacity:0.5; cursor:not-allowed }
+textarea { font-size:13px }
