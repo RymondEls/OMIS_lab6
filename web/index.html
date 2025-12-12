@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Gesture Recognition — Demo</title>
+  </head>
+  <body>
+    <h1>Gesture Recognition — Demo</h1>
+    <p>Live pose landmarks and recognition results from `/ws/capture` and `/recognize`.</p>
+
+    <pre id="log" style="height:300px;overflow:auto;border:1px solid #ddd;padding:8px"></pre>
+    <div>
+      <strong>Last recognition:</strong> <span id="last"></span>
+    </div>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const lastEl = document.getElementById('last');
+
+      function log(msg) {
+        const t = document.createElement('div');
+        t.textContent = msg;
+        logEl.prepend(t);
+      }
+
+      const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/capture');
+      ws.onopen = () => log('WS connected');
+      ws.onclose = () => log('WS closed');
+      ws.onerror = (e) => log('WS error: ' + e);
+      ws.onmessage = async (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          log('landmarks received');
+
+          // send to recognition endpoint
+          const res = await fetch('/recognize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ landmarks: data.landmarks })
+          });
+          const result = await res.json();
+          lastEl.textContent = result.label + ' (' + (result.confidence ?? '') + ')';
+          log('recognize -> ' + JSON.stringify(result));
+        } catch (err) {
+          log('parse error: ' + err);
+        }
+      };
+    </script>
+  </body>
+</html>

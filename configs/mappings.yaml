@@ -1,0 +1,13 @@
+# Mapping from recognized label to action
+# action types: log, callback
+raise_right_hand:
+  type: log
+  message: "Right hand raised"
+
+raise_left_hand:
+  type: log
+  message: "Left hand raised"
+
+wave:
+  type: callback
+  url: "http://example.com/webhook"
