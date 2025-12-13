@@ -1,21 +1,30 @@
+"""
+API роутер для проверки здоровья системы.
+"""
 from fastapi import APIRouter
-from pydantic import BaseModel
 import time
 import platform
+import sys
 
-router = APIRouter()
-
-
-class HealthResponse(BaseModel):
-    status: str
-    uptime: float | None = None
-    python: str | None = None
+router = APIRouter(tags=["health"])
 
 
-_START = time.time()
+@router.get("/health")
+async def health_check():
+    """Проверка состояния системы."""
+    return {
+        "status": "ok",
+        "python_version": platform.python_version(),
+        "platform": platform.system(),
+        "timestamp": time.time()
+    }
 
 
-@router.get("/health", response_model=HealthResponse)
-def health():
-    """Health endpoint with basic runtime info."""
-    return {"status": "ok", "uptime": time.time() - _START, "python": platform.python_version()}
+@router.get("/")
+async def root():
+    """Корневой endpoint."""
+    return {
+        "service": "Gesture Recognition System",
+        "version": "1.0.0",
+        "status": "running"
+    }

@@ -1,9 +1,49 @@
 raise_left_hand:
-  message: Left hand raised
   type: log
+  message: "Поднята левая рука - предыдущая страница"
+  description: "Навигация назад"
+
 raise_right_hand:
-  message: Right hand raised
   type: log
-wave:
+  message: "Поднята правая рука - следующая страница"
+  description: "Навигация вперед"
+
+both_hands_up:
   type: callback
-  url: http://example.com/webhook
+  url: "http://example.com/webhook/both_hands_up"
+  description: "Обе руки подняты - специальное действие"
+
+clap:
+  type: log
+  message: "Хлопок - пауза/воспроизведение"
+  description: "Управление медиа"
+
+point_left:
+  type: log
+  message: "Указание влево - навигация влево"
+  description: "Навигация"
+
+point_right:
+  type: log
+  message: "Указание вправо - навигация вправо"
+  description: "Навигация"
+
+hands_close:
+  type: log
+  message: "Руки близко - выбор/подтверждение"
+  description: "Выбор элемента"
+
+wave_right:
+  type: callback
+  url: "http://example.com/webhook/wave"
+  description: "Мах правой рукой"
+
+wave_left:
+  type: log
+  message: "Мах левой рукой"
+  description: "Приветствие"
+
+circle_right:
+  type: log
+  message: "Круговое движение правой рукой"
+  description: "Специальное действие"

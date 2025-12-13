@@ -1,43 +1,97 @@
-from fastapi import APIRouter
+"""
+API роутер для подсистемы распознавания жестов.
+"""
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any
-from src.app.services.recognizer import Recognizer
-from src.app.services.interpret import InterpretService
-import asyncio
+from typing import Dict, Any, Optional
+from src.app.services.recognizer import GestureRecognizer
+from src.app.services.interpret import InterpretationService
+from src.app.services.preprocess import LandmarkPreprocessor
 import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/recognize", tags=["recognition"])
 
 
 class LandmarksPayload(BaseModel):
+    """Модель для передачи landmarks."""
     landmarks: Dict[str, Dict[str, Any]]
+    timestamp: Optional[float] = None
 
 
-class RecognitionResult(BaseModel):
-    label: str
-    confidence: float
+class RecognitionResponse(BaseModel):
+    """Ответ с результатом распознавания."""
+    gesture: str
+    confidence: Optional[float] = None
+    action: Dict[str, Any]
+    timestamp: Optional[float] = None
 
 
-@router.post("/recognize")
-def recognize(payload: LandmarksPayload):
+@router.post("", response_model=RecognitionResponse)
+async def recognize_gesture(payload: LandmarksPayload):
+    """
+    Распознавание жеста на основе landmarks.
+    
+    Сценарий использования: Конечный пользователь выполняет движения перед камерой,
+    система распознает их и возвращает результат.
+    """
     try:
-        label, conf = Recognizer.simple_rule_recognize(payload.landmarks)
-        logger.debug(f"Recognized: {label} ({conf})")
+        # Предобработка
+        preprocessor = LandmarkPreprocessor()
+        smoothed_landmarks = preprocessor.smooth_landmarks(payload.landmarks)
         
-        interpreter = InterpretService()
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            import asyncio as _asyncio
-
-            loop = _asyncio.new_event_loop()
-            _asyncio.set_event_loop(loop)
-
-        result = loop.run_until_complete(interpreter.execute(label))
-        logger.debug(f"Interpretation result: {result}")
-        return {"label": label, "confidence": conf, "action": result}
+        # Распознавание
+        recognizer = GestureRecognizer()
+        gesture = recognizer.recognize(smoothed_landmarks)
+        
+        # Интерпретация
+        interpreter = InterpretationService()
+        context = {
+            "timestamp": payload.timestamp,
+            "landmarks": smoothed_landmarks
+        }
+        action_result = await interpreter.execute(gesture, context)
+        
+        logger.debug(f"Распознан жест: {gesture}, действие: {action_result.get('status')}")
+        
+        return RecognitionResponse(
+            gesture=gesture,
+            action=action_result,
+            timestamp=payload.timestamp
+        )
+    
     except Exception as e:
-        logger.exception("Error in recognize endpoint")
-        return {"label": "error", "confidence": 0.0, "error": str(e)}
+        logger.exception(f"Ошибка распознавания жеста: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка распознавания: {str(e)}")
+
+
+@router.post("/batch")
+async def recognize_batch(landmarks_list: list[LandmarksPayload]):
+    """
+    Пакетное распознавание последовательности жестов.
+    Используется для анализа движений.
+    """
+    try:
+        recognizer = GestureRecognizer()
+        preprocessor = LandmarkPreprocessor()
+        results = []
+        
+        for payload in landmarks_list:
+            smoothed = preprocessor.smooth_landmarks(payload.landmarks)
+            gesture = recognizer.recognize(smoothed)
+            if gesture != "none":
+                results.append({
+                    "gesture": gesture,
+                    "timestamp": payload.timestamp
+                })
+        
+        return {
+            "recognized_gestures": results,
+            "total_frames": len(landmarks_list),
+            "gestures_count": len(results)
+        }
+    
+    except Exception as e:
+        logger.exception(f"Ошибка пакетного распознавания: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

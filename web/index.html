@@ -1,152 +1,175 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Gesture Recognition — Demo</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-    <style>
-      body { font-family: Arial, sans-serif; margin: 12px; }
-      .row { display:flex; gap:16px; align-items:flex-start; }
-      .panel { border:1px solid #ddd; padding:12px; border-radius:6px; background:#fff; }
-      #canvasWrap { position:relative; width:640px; height:480px; background:#222; }
-      canvas { position:absolute; left:0; top:0; }
-      #controls { width:320px; }
-      label { display:block; margin-top:8px; }
-      button { margin-top:8px; padding:8px 12px; }
-      #status { margin-top:8px; font-weight:600; }
-    </style>
-  </head>
-  <body>
-    <h1>Gesture Recognition — Demo</h1>
-    <div class="row">
-      <div class="panel" id="canvasWrap">
-        <canvas id="videoCanvas" width="640" height="480"></canvas>
-        <canvas id="overlay" width="640" height="480"></canvas>
-      </div>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система распознавания жестов и движений</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header>
+        <h1>🎯 Система автоматического распознавания жестов и движений</h1>
+        <nav>
+            <button id="userTabBtn" class="tab-btn active" onclick="switchTab('user')">👤 Режим пользователя</button>
+            <button id="developerTabBtn" class="tab-btn" onclick="switchTab('developer')">👨‍💻 Режим разработчика</button>
+            <button id="specialistTabBtn" class="tab-btn" onclick="switchTab('specialist')">👨‍⚕️ Режим специалиста</button>
+            <button id="themeToggle" class="theme-btn">🌙 Темная тема</button>
+        </nav>
+    </header>
 
-      <div class="panel" id="controls">
-        <div>
-          <label>Label for recording:</label>
-          <input id="labelInput" type="text" placeholder="e.g. raise_right_hand" />
-        </div>
-        <div>
-          <button id="startRec">Start Recording</button>
-          <button id="stopRec" disabled>Stop Recording</button>
-        </div>
-        <div id="status">Status: idle</div>
-        <hr />
-        <div>
-          <label>Mappings (edit and Save)</label>
-          <textarea id="mappings" style="width:100%;height:160px;font-family:monospace"></textarea>
-          <button id="saveMappings">Save Mappings</button>
-        </div>
-      </div>
-    </div>
+    <main>
+        <!-- Секция видео -->
+        <section id="videoSection" class="video-section">
+            <div id="videoWrap" class="video-wrap">
+                <canvas id="videoCanvas" width="640" height="480"></canvas>
+                <canvas id="overlayCanvas" width="640" height="480"></canvas>
+                <div id="videoStatus" class="video-status">Подключение к камере...</div>
+            </div>
+            <div id="status" class="status-text">Статус: Инициализация...</div>
+        </section>
 
-    <script>
-      const videoCanvas = document.getElementById('videoCanvas');
-      const overlay = document.getElementById('overlay');
-      const vctx = videoCanvas.getContext('2d');
-      const octx = overlay.getContext('2d');
+        <!-- Режим пользователя -->
+        <section id="userTab" class="tab active">
+            <h2>👤 Режим пользователя</h2>
+            <p class="tab-description">Выполняйте жесты перед камерой для управления приложениями.</p>
+            
+            <div class="gesture-display">
+                <div class="gesture-card">
+                    <h3>Распознанный жест:</h3>
+                    <div id="recognizedGesture" class="gesture-label">Ожидание жеста...</div>
+                </div>
+                <div class="action-card">
+                    <h3>Выполненное действие:</h3>
+                    <div id="actionResult" class="action-result">-</div>
+                </div>
+            </div>
 
-      const labelInput = document.getElementById('labelInput');
-      const startRec = document.getElementById('startRec');
-      const stopRec = document.getElementById('stopRec');
-      const statusEl = document.getElementById('status');
-      const mappingsEl = document.getElementById('mappings');
-      const saveMappings = document.getElementById('saveMappings');
+            <div class="gesture-list">
+                <h3>Доступные жесты:</h3>
+                <div id="availableGestures" class="gestures-grid">
+                    <!-- Заполняется динамически -->
+                </div>
+            </div>
+        </section>
 
-      let ws;
-      let recording = false;
-      let recordLabel = '';
+        <!-- Режим разработчика -->
+        <section id="developerTab" class="tab hidden">
+            <h2>👨‍💻 Режим разработчика</h2>
+            <p class="tab-description">Настройте соответствие жестов командам приложения.</p>
+            
+            <div class="config-section">
+                <h3>Создать новое правило жеста</h3>
+                <div class="form-group">
+                    <label for="gestureName">Название жеста:</label>
+                    <input type="text" id="gestureName" placeholder="например: swipe_right" list="gestureSuggestions">
+                    <datalist id="gestureSuggestions">
+                        <option value="raise_left_hand">
+                        <option value="raise_right_hand">
+                        <option value="both_hands_up">
+                        <option value="clap">
+                        <option value="point_left">
+                        <option value="point_right">
+                        <option value="hands_close">
+                        <option value="wave_right">
+                        <option value="wave_left">
+                        <option value="circle_right">
+                    </datalist>
+                </div>
+                
+                <div class="form-group">
+                    <label for="actionType">Тип действия:</label>
+                    <select id="actionType">
+                        <option value="log">Логирование (log)</option>
+                        <option value="callback">Callback запрос (callback)</option>
+                        <option value="keyboard">Эмуляция клавиатуры (keyboard)</option>
+                        <option value="mouse">Эмуляция мыши (mouse)</option>
+                    </select>
+                </div>
 
-      function setStatus(s) { statusEl.textContent = 'Status: ' + s; }
+                <div class="form-group" id="messageGroup">
+                    <label for="actionMessage">Сообщение:</label>
+                    <input type="text" id="actionMessage" placeholder="Описание действия">
+                </div>
 
-      function drawLandmarks(landmarks) {
-        octx.clearRect(0,0,overlay.width,overlay.height);
-        if (!landmarks) return;
-        octx.fillStyle = 'lime';
-        octx.strokeStyle = 'rgba(0,255,0,0.7)';
-        octx.lineWidth = 2;
-        for (const k in landmarks) {
-          const p = landmarks[k];
-          const x = p.x * overlay.width;
-          const y = p.y * overlay.height;
-          octx.beginPath(); octx.arc(x,y,4,0,Math.PI*2); octx.fill();
-        }
-      }
+                <div class="form-group hidden" id="urlGroup">
+                    <label for="actionUrl">URL для callback:</label>
+                    <input type="url" id="actionUrl" placeholder="https://example.com/webhook">
+                </div>
 
-      async function initWS(){
-        const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/capture');
-        ws.onopen = () => setStatus('WS: подключено');
-        ws.onclose = () => setStatus('WS: закрыто');
-        ws.onerror = (e) => setStatus('WS: ошибка');
-        ws.onmessage = async (e) => {
-          try {
-            const data = JSON.parse(e.data);
+                <div class="form-group hidden" id="keyGroup">
+                    <label for="actionKey">Клавиша:</label>
+                    <input type="text" id="actionKey" placeholder="например: Enter, Space">
+                </div>
 
-            // draw camera frame if available
-            if (data.frame) {
-              const img = new Image();
-              img.onload = () => { vctx.drawImage(img,0,0, videoCanvas.width, videoCanvas.height); };
-              img.onerror = () => console.error('Failed to load frame image');
-              img.src = data.frame;
-            }
+                <div class="form-group hidden" id="mouseActionGroup">
+                    <label for="mouseAction">Действие мыши:</label>
+                    <select id="mouseAction">
+                        <option value="click">Клик</option>
+                        <option value="double_click">Двойной клик</option>
+                        <option value="right_click">Правый клик</option>
+                    </select>
+                </div>
 
-            drawLandmarks(data.landmarks);
+                <div class="form-group">
+                    <label for="actionDescription">Описание:</label>
+                    <input type="text" id="actionDescription" placeholder="Краткое описание правила">
+                </div>
 
-            // send to recognize and show nice UI
-            const res = await fetch('/recognize', { method: 'POST', headers:{ 'Content-Type':'application/json'}, body: JSON.stringify({landmarks: data.landmarks}) });
-            if (!res.ok) {
-              setStatus('Ошибка: ' + res.status);
-              return;
-            }
-            const result = await res.json();
+                <button onclick="addCustomRule()" class="btn-primary">➕ Добавить правило</button>
+            </div>
 
-            // show highlighted label
-            if (result.label && result.label !== 'none') {
-              setStatus('Распознано: ' + result.label + ' — ' + (result.confidence ?? ''));
-            } else {
-              setStatus('Распознавание: —');
-            }
+            <div class="rules-section">
+                <h3>Текущие правила жестов</h3>
+                <div id="rulesList" class="rules-list">
+                    <!-- Заполняется динамически -->
+                </div>
+            </div>
+        </section>
 
-            // if recording, send sample
-            if (recording && recordLabel) {
-              await fetch('/record/sample', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ label: recordLabel, landmarks: data.landmarks }) });
-            }
-          } catch (err) {
-            console.error(err);
-          }
-        };
-      }
+        <!-- Режим специалиста -->
+        <section id="specialistTab" class="tab hidden">
+            <h2>👨‍⚕️ Режим специалиста</h2>
+            <p class="tab-description">Анализ техники движений для реабилитации и тренировок.</p>
+            
+            <div class="analysis-section">
+                <h3>Запись движения</h3>
+                <div class="form-group">
+                    <label for="exerciseLabel">Название упражнения:</label>
+                    <input type="text" id="exerciseLabel" placeholder="например: приседание, мах рукой">
+                </div>
+                
+                <div class="recording-controls">
+                    <button id="startRecordingBtn" onclick="startRecording()" class="btn-success">🔴 Начать запись</button>
+                    <button id="stopRecordingBtn" onclick="stopRecording()" disabled class="btn-danger">⏹ Остановить и проанализировать</button>
+                    <button onclick="clearAnalysis()" class="btn-secondary">🗑 Очистить</button>
+                </div>
+                
+                <div id="recordingStatus" class="recording-status hidden">
+                    <div class="recording-indicator"></div>
+                    <span>Идет запись...</span>
+                </div>
+            </div>
 
-      startRec.onclick = () => {
-        const v = labelInput.value.trim();
-        if (!v) { alert('Введите метку для записи'); return; }
-        recordLabel = v; recording = true; startRec.disabled = true; stopRec.disabled = false; setStatus('recording: ' + recordLabel);
-      };
-      stopRec.onclick = () => { recording = false; recordLabel=''; startRec.disabled=false; stopRec.disabled=true; setStatus('idle'); };
+            <div class="report-section">
+                <h3>Отчет об анализе</h3>
+                <div id="analysisReport" class="analysis-report">
+                    <p class="placeholder">Запишите движение для получения отчета</p>
+                </div>
+            </div>
 
-      saveMappings.onclick = async () => {
-        try {
-          const payload = JSON.parse(mappingsEl.value);
-          const res = await fetch('/settings/mappings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-          if (res.ok) alert('Mappings saved'); else alert('Save error');
-        } catch(e){ alert('Invalid JSON'); }
-      };
+            <div class="history-section">
+                <h3>История записей</h3>
+                <div id="historyList" class="history-list">
+                    <!-- Заполняется динамически -->
+                </div>
+            </div>
+        </section>
+    </main>
 
-      async function loadMappings(){
-        try{
-          const res = await fetch('/settings/mappings');
-          const data = await res.json();
-          mappingsEl.value = JSON.stringify(data, null, 2);
-        }catch(e){ mappingsEl.value = '{}'; }
-      }
+    <footer>
+        <p>Система автоматического распознавания жестов и движений v1.0.0</p>
+    </footer>
 
-      // init
-      initWS();
-      loadMappings();
-    </script>
-  </body>
+    <script src="/static/script.js"></script>
+</body>
 </html>
